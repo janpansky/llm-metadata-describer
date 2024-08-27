@@ -66,6 +66,7 @@ class YAMLProcessor:
         self.sdk = sdk
         self.llm_client = llm_client
         self.description_source = description_source
+        self.descriptions_dict = {}
 
     def generate_descriptions(self, layout_root_path: Optional[Path] = None, store_layouts: bool = False,
                               load_layouts: bool = False) -> None:
@@ -138,6 +139,10 @@ class YAMLProcessor:
         return data
 
     def generate_description(self, element: dict) -> str:
+        element_id = element.get('id')
+        if not element_id:
+            raise ValueError("Element ID is missing")
+
         if self.description_source == 'api':
             prompt = (f"Generate a global descriptive text with business meaning for ecommerce-solution "
                       f"so I can find it with various similarity search algorithms "
@@ -150,12 +155,20 @@ class YAMLProcessor:
                       f"Data Type: {element.get('sourceColumnDataType')}\n"
                       f"Tags: {', '.join(element.get('tags', []))}\n"
                       f"Value Type: {element.get('valueType', 'N/A')}\n")
-            return self.llm_client.call(prompt)
+            description = self.llm_client.call(prompt)
         elif self.description_source == 'disk':
-            return self.load_description_from_disk(element)
-        return "No description available"
+            description = self.load_description_from_disk(element)
+        else:
+            description = "No description available"
+
+        self.descriptions_dict[element_id] = description  # Store in global dictionary
+        return description
 
     def generate_global_description(self, element: dict) -> str:
+        element_id = element.get('id')
+        if not element_id:
+            raise ValueError("Element ID is missing")
+
         prompt = (f"Generate a global descriptive text with business meaning for ecommerce-solution "
                   f"so I can find it with various similarity search algorithms "
                   f"do not describe the fields itself "
@@ -165,7 +178,10 @@ class YAMLProcessor:
                   f"Title: {element.get('title')}\n"
                   f"Existing Description: {element.get('description', '')}\n"
                   f"Details: {element}\n")
-        return self.llm_client.call(prompt)
+        description = self.llm_client.call(prompt)
+
+        self.descriptions_dict[element_id] = description  # Store in global dictionary
+        return description
 
     @staticmethod
     def load_description_from_disk(element: dict) -> str:
@@ -198,6 +214,12 @@ def main():
         store_layouts=True,
         load_layouts=False,
     )
+    # Output the global dictionary containing all descriptions
+    print("Descriptions Dictionary:")
+    for element_id, description in processor.descriptions_dict.items():
+        print(f"{element_id}: {description}")
+
+    print(processor.descriptions_dict)
 
 
 if __name__ == "__main__":
