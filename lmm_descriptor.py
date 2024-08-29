@@ -70,33 +70,54 @@ class YAMLProcessor:
 
     def generate_descriptions(self, layout_root_path: Optional[Path] = Path.cwd(), store_layouts: bool = False,
                               load_layouts: bool = False) -> None:
+        if load_layouts:
+            # Load the workspace layout from disk and skip storing layouts and description generation
+            print(f"Loading workspace from path: {layout_root_path}")
+            self.load_workspace(layout_root_path)
+            print("Workspace loaded successfully. Skipping layout storage and description generation.")
+            return  # Skip further processing
+
         if store_layouts:
+            # Store the current workspace layout
             self.store_current_layout(layout_root_path)
 
-        if load_layouts:
-            self.load_workspace(layout_root_path)
-
+        # Process YAML files and generate descriptions if not loading layouts
         self.process_yaml_files(layout_root_path)
 
     def store_current_layout(self, layout_root_path: Path) -> None:
         # Store the current workspace layout to disk
         self.sdk.catalog_workspace.store_declarative_workspace(self.workspace_id, layout_root_path)
 
-    def load_workspace(self, layout_root_path: Path) -> CatalogDeclarativeWorkspaceModel:
-        # Load the workspace layout from disk
-        return self.sdk.catalog_workspace.load_declarative_workspace(self.workspace_id, layout_root_path)
+    def load_workspace(self, layout_root_path: Path) -> None:
+        print(f"Attempting to load workspace layout from: {layout_root_path}")
+
+        try:
+            if not layout_root_path.is_dir():
+                raise FileNotFoundError(f"Path {layout_root_path} does not exist or is not a directory.")
+
+            workspace_layout = self.sdk.catalog_workspace.load_declarative_workspace(self.workspace_id,
+                                                                                     layout_root_path)
+            print(f"Workspace layout loaded successfully: {workspace_layout}")
+
+            self.sdk.catalog_workspace.put_declarative_workspace(
+                workspace_id=self.workspace_id,
+                workspace=workspace_layout
+            )
+            print("Workspace layout saved successfully.")
+
+        except Exception as e:
+            print(f"Failed to load workspace layout: {e}")
+            sys.exit()
 
     def process_yaml_files(self, layout_root_path: Path) -> None:
         for yaml_file in layout_root_path.glob('**/ldm/datasets/*.yaml'):
             self.update_yaml_file(yaml_file)
 
-    import os
-
     def update_yaml_file(self, yaml_file: Path) -> None:
         print(f"Processing YAML file: {yaml_file}")
 
         # Load existing data
-        with open(yaml_file, 'r') as file:
+        with open(yaml_file, 'r', encoding='utf-8') as file:
             data = yaml.safe_load(file)
 
         print("Original data:", data)  # Debug print
@@ -230,8 +251,8 @@ def main():
 
     processor.generate_descriptions(
         layout_root_path=layout_root_path,
-        store_layouts=True,
-        load_layouts=False,
+        store_layouts=False,
+        load_layouts=True,
     )
 
     print("Descriptions Dictionary:")
