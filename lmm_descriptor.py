@@ -3,10 +3,9 @@ import sys
 import requests
 import yaml
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional
 
 from gooddata_sdk import GoodDataSdk
-
 
 # Utility function to load environment variables
 def load_env_variables() -> dict:
@@ -59,7 +58,6 @@ class LLMClient:
         return response_data['choices'][0]['message']['content'].strip()
 
 
-# YAML Processor
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str):
         self.workspace_id = workspace_id
@@ -68,74 +66,105 @@ class YAMLProcessor:
         self.description_source = description_source
         self.descriptions_dict = {}
 
-    def generate_descriptions(self, layout_root_path: Optional[Path] = None, store_layouts: bool = False,
+    def generate_descriptions(self, layout_root_path: Optional[Path] = Path.cwd(), store_layouts: bool = False,
                               load_layouts: bool = False) -> None:
-        workspace_folder = self.create_workspace_folder(layout_root_path)
-
         if store_layouts:
-            self.store_current_layout(workspace_folder)
-
-        self.process_yaml_files(workspace_folder)
+            self.store_current_layout(layout_root_path)
 
         if load_layouts:
-            self.load_workspace_from_disk(workspace_folder)
+            self.load_workspace(layout_root_path)
 
-    def create_workspace_folder(self, layout_root_path: Optional[Path]) -> Path:
-        if layout_root_path:
-            workspace_folder = layout_root_path
-        else:
-            workspace_folder = Path.cwd() / "workspaces" / self.workspace_id
-        workspace_folder.mkdir(parents=True, exist_ok=True)
-        return workspace_folder
+        self.process_yaml_files(layout_root_path)
 
-    def store_current_layout(self, workspace_folder: Path) -> None:
-        workspace_content = self.sdk.catalog_workspace.get_declarative_workspace(self.workspace_id)
-        workspace_content.store_to_disk(workspace_folder)
+    def store_current_layout(self, layout_root_path: Path) -> None:
+        # Store the current workspace layout to disk
+        self.sdk.catalog_workspace.store_declarative_workspace(self.workspace_id, layout_root_path)
 
-    def process_yaml_files(self, workspace_folder: Path) -> None:
-        for yaml_file in workspace_folder.glob('ldm/datasets/*.yaml'):
+    def load_workspace(self, layout_root_path: Path) -> None:
+        # Load the workspace layout from disk
+        return self.sdk.catalog_workspace.load_declarative_workspace(self.workspace_id, layout_root_path)
+
+    def process_yaml_files(self, layout_root_path: Path) -> None:
+        for yaml_file in layout_root_path.glob('**/ldm/datasets/*.yaml'):
             self.update_yaml_file(yaml_file)
-            # if yaml_file.name == "customer.yaml":  # Process only the customer.yaml file
-            #     print(f"Processing {yaml_file}")
-            #     self.update_yaml_file(yaml_file)
-            #     break
+
+    import os
 
     def update_yaml_file(self, yaml_file: Path) -> None:
-        with open(yaml_file, 'r') as file:
+        print(f"Processing YAML file: {yaml_file}")
+
+        # Load existing data
+        with open(yaml_file, 'r', encoding='utf-8') as file:
             data = yaml.safe_load(file)
 
+        print("Original data:", data)  # Debug print
+
+        # Update data
         data = self.update_labels(data)
         data = self.update_attributes(data)
         data = self.update_facts(data)
         data = self.update_global_description(data)
 
-        with open(yaml_file, 'w') as file:
-            yaml.safe_dump(data, file, default_flow_style=False)
+        print("Data to be written:", data)  # Debug print
+
+        print(f"Writing to: {yaml_file.resolve()}")
+        print(f"File exists: {os.path.exists(yaml_file)}")
+        print(f"File writable: {os.access(yaml_file, os.W_OK)}")
+        print(f"File permissions: {oct(os.stat(yaml_file).st_mode)}")
+        directory = yaml_file.parent
+        print(f"Directory writable: {os.access(directory, os.W_OK)}")
+        print(f"Processing YAML file: {yaml_file.resolve()}")
+        print(f"Absolute path of the file: {yaml_file.resolve()}")
+
+        # Check if data actually changed
+        if data != yaml.safe_load(yaml_file.read_text()):
+            print("Data has changed, writing to file...")
+
+            with open(yaml_file, 'w', encoding='utf-8') as file:
+                yaml.safe_dump(data, file, default_flow_style=False)
+
+            # Verify that the file was written correctly
+            written_data = yaml.safe_load(yaml_file.read_text())
+            print("Data actually written to file:", written_data)
+        else:
+            print("Data has not changed, skipping file write.")
 
     def update_labels(self, data: dict) -> dict:
-        for item in data.get('attributes', []):
-            if 'labels' in item:
-                for label in item['labels']:
-                    label['description'] = self.generate_description(label)
-        for item in data.get('facts', []):
-            if 'labels' in item:
-                for label in item['labels']:
-                    label['description'] = self.generate_description(label)
+        for attribute in data.get('attributes', []):
+            if 'labels' in attribute:
+                for label in attribute['labels']:
+                    original_description = label.get('description')
+                    new_description = self.generate_description(label)
+                    if original_description != new_description:
+                        label['description'] = new_description
+                        print(f"Updated label description from '{original_description}' to '{new_description}'")
         return data
 
     def update_attributes(self, data: dict) -> dict:
         for attribute in data.get('attributes', []):
-            attribute['description'] = self.generate_description(attribute)
+            original_description = attribute.get('description')
+            new_description = self.generate_description(attribute)
+            if original_description != new_description:
+                attribute['description'] = new_description
+                print(f"Updated attribute description from '{original_description}' to '{new_description}'")
         return data
 
     def update_facts(self, data: dict) -> dict:
         for fact in data.get('facts', []):
-            fact['description'] = self.generate_description(fact)
+            original_description = fact.get('description')
+            new_description = self.generate_description(fact)
+            if original_description != new_description:
+                fact['description'] = new_description
+                print(f"Updated fact description from '{original_description}' to '{new_description}'")
         return data
 
     def update_global_description(self, data: dict) -> dict:
         if 'description' in data:
-            data['description'] = self.generate_global_description(data)
+            original_description = data.get('description')
+            new_description = self.generate_global_description(data)
+            if original_description != new_description:
+                data['description'] = new_description
+                print(f"Updated global description from '{original_description}' to '{new_description}'")
         return data
 
     def generate_description(self, element: dict) -> str:
@@ -191,17 +220,16 @@ class YAMLProcessor:
                 return file.read().strip()
         return "Description not found"
 
-    def load_workspace_from_disk(self, workspace_folder: Path) -> None:
-        # Assuming CatalogDeclarativeWorkspaceModel is properly defined elsewhere
-        CatalogDeclarativeWorkspaceModel.load_from_disk(workspace_folder)
 
-
-# Main function to orchestrate the workflow
 def main():
     env_vars = load_env_variables()
 
     sdk = initialize_sdk(env_vars['HOSTNAME'], env_vars['API_TOKEN'])
     llm_client = LLMClient(api_token=env_vars['LLM_API_TOKEN'])
+
+    # Define the project base path
+    project_base_path = Path(__file__).parent
+    layout_root_path = project_base_path / "workspace_layout_directory"
 
     processor = YAMLProcessor(
         workspace_id="dev",
@@ -211,15 +239,14 @@ def main():
     )
 
     processor.generate_descriptions(
+        layout_root_path=layout_root_path,
         store_layouts=True,
         load_layouts=False,
     )
-    # Output the global dictionary containing all descriptions
+
     print("Descriptions Dictionary:")
     for element_id, description in processor.descriptions_dict.items():
         print(f"{element_id}: {description}")
-
-    print(processor.descriptions_dict)
 
 
 if __name__ == "__main__":
