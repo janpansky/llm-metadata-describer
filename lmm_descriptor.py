@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Optional
 
 from gooddata_sdk import GoodDataSdk
+from gooddata_sdk.catalog.workspace.declarative_model.workspace.workspace import CatalogDeclarativeWorkspaceModel
+
 
 # Utility function to load environment variables
 def load_env_variables() -> dict:
@@ -80,7 +82,7 @@ class YAMLProcessor:
         # Store the current workspace layout to disk
         self.sdk.catalog_workspace.store_declarative_workspace(self.workspace_id, layout_root_path)
 
-    def load_workspace(self, layout_root_path: Path) -> None:
+    def load_workspace(self, layout_root_path: Path) -> CatalogDeclarativeWorkspaceModel:
         # Load the workspace layout from disk
         return self.sdk.catalog_workspace.load_declarative_workspace(self.workspace_id, layout_root_path)
 
@@ -94,7 +96,7 @@ class YAMLProcessor:
         print(f"Processing YAML file: {yaml_file}")
 
         # Load existing data
-        with open(yaml_file, 'r', encoding='utf-8') as file:
+        with open(yaml_file, 'r') as file:
             data = yaml.safe_load(file)
 
         print("Original data:", data)  # Debug print
@@ -113,8 +115,6 @@ class YAMLProcessor:
         print(f"File permissions: {oct(os.stat(yaml_file).st_mode)}")
         directory = yaml_file.parent
         print(f"Directory writable: {os.access(directory, os.W_OK)}")
-        print(f"Processing YAML file: {yaml_file.resolve()}")
-        print(f"Absolute path of the file: {yaml_file.resolve()}")
 
         # Check if data actually changed
         if data != yaml.safe_load(yaml_file.read_text()):
@@ -185,8 +185,6 @@ class YAMLProcessor:
                       f"Tags: {', '.join(element.get('tags', []))}\n"
                       f"Value Type: {element.get('valueType', 'N/A')}\n")
             description = self.llm_client.call(prompt)
-        elif self.description_source == 'disk':
-            description = self.load_description_from_disk(element)
         else:
             description = "No description available"
 
@@ -212,14 +210,6 @@ class YAMLProcessor:
         self.descriptions_dict[element_id] = description  # Store in global dictionary
         return description
 
-    @staticmethod
-    def load_description_from_disk(element: dict) -> str:
-        description_file = Path('descriptions') / f"{element.get('title')}.txt"
-        if description_file.exists():
-            with open(description_file, 'r') as file:
-                return file.read().strip()
-        return "Description not found"
-
 
 def main():
     env_vars = load_env_variables()
@@ -232,10 +222,10 @@ def main():
     layout_root_path = project_base_path / "workspace_layout_directory"
 
     processor = YAMLProcessor(
-        workspace_id="dev",
+        workspace_id="prod",
         sdk=sdk,
         llm_client=llm_client,
-        description_source='api'  # Change to 'disk' to use descriptions from disk
+        description_source='api'
     )
 
     processor.generate_descriptions(
