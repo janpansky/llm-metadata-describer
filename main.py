@@ -24,7 +24,8 @@ def main():
         sdk=sdk,
         llm_client=llm_client,
         description_source='api',
-        root_path=project_base_path
+        root_path=project_base_path,
+        batch_size=50  # Adjust the batch size as needed
     )
 
     processor.generate_descriptions(layout_root_path=layout_root_path)

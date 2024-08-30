@@ -3,8 +3,9 @@ import re
 import sys
 from pathlib import Path
 from gooddata_sdk import GoodDataSdk
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from llm_client import LLMClient
+from prompt_utils import generate_prompt, extract_ids_from_visualization_object, extract_ids_from_dashboard
 import logging
 
 logger = logging.getLogger(__name__)
@@ -51,23 +52,100 @@ def extract_ids_from_dashboard(layout: dict) -> list:
 
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
-                 root_path: Path):
+                 root_path: Path, batch_size: int = 50):
         self.workspace_id = workspace_id
         self.sdk = sdk
         self.llm_client = llm_client
         self.description_source = description_source
         self.root_path = root_path
+        self.batch_size = batch_size
         self.descriptions_dict = self.load_descriptions()
 
     def generate_descriptions(self, layout_root_path: Optional[Path] = Path.cwd()) -> None:
         self.store_current_layout(layout_root_path)
-        self.process_date_instance_files(layout_root_path)
-        self.process_dataset_files(layout_root_path)
-        self.process_non_metric_files(layout_root_path)
-        self.process_metric_files(layout_root_path)
-        self.process_visualization_object_files(layout_root_path)
-        self.process_dashboard_files(layout_root_path)
+        self.process_files_in_batches(layout_root_path, 'date instance')
+        self.process_files_in_batches(layout_root_path, 'dataset')
+        self.process_files_in_batches(layout_root_path, 'non-metric')
+        self.process_files_in_batches(layout_root_path, 'metric')
+        self.process_files_in_batches(layout_root_path, 'visualization object')
+        self.process_files_in_batches(layout_root_path, 'dashboard')
         self.save_descriptions()
+
+    def process_files_in_batches(self, layout_root_path: Path, file_type: str) -> None:
+        logger.info(f"Processing {file_type} files in batches...")
+        file_paths = self.get_file_paths(layout_root_path, file_type)
+
+        for i in range(0, len(file_paths), self.batch_size):
+            batch = file_paths[i:i + self.batch_size]
+            logger.info(f"Processing batch {i // self.batch_size + 1}: {len(batch)} files")
+            for yaml_file in batch:
+                self.process_file(yaml_file, file_type)
+
+    def process_file(self, yaml_file: Path, file_type: str) -> None:
+        data = self.load_yaml_file(yaml_file)
+        if not data:
+            return
+
+        # Process dataset-level description
+        self._update_element_description(data, 'dataset')
+
+        # Process attributes, labels, and facts within the dataset
+        if 'attributes' in data:
+            for attribute in data['attributes']:
+                self._update_element_description(attribute, 'attribute')
+
+                # Process labels within attributes
+                if 'labels' in attribute:
+                    for label in attribute['labels']:
+                        self._update_element_description(label, 'label')
+
+        if 'facts' in data:
+            for fact in data['facts']:
+                self._update_element_description(fact, 'fact')
+
+        self.save_yaml_file(yaml_file, data)
+
+    def _update_element_description(self, element: dict, element_type: str) -> None:
+        element_id = element.get('id')
+        if element_id in self.descriptions_dict:
+            element['description'] = self.descriptions_dict[element_id]
+            logger.info(f"Applied existing description for {element_type} ID {element_id}: {element['description']}")
+        else:
+            prompt = self.generate_element_prompt(element, element_type)
+            description = self.llm_client.call(prompt)
+            if description:
+                element['description'] = description
+                self.descriptions_dict[element_id] = description
+                logger.info(f"Generated description for {element_type} ID {element_id}: {description}")
+
+    def get_file_paths(self, layout_root_path: Path, file_type: str) -> List[Path]:
+        if file_type == 'date instance':
+            return list(layout_root_path.glob('**/ldm/date_instances/*.yaml'))
+        elif file_type == 'dataset':
+            return list(layout_root_path.glob('**/ldm/datasets/*.yaml'))
+        elif file_type == 'non-metric':
+            return list(layout_root_path.glob('**/analytics_model/metrics/*.yaml'))
+        elif file_type == 'metric':
+            return list(layout_root_path.glob('**/analytics_model/metrics/*.yaml'))
+        elif file_type == 'visualization object':
+            return list(layout_root_path.glob('**/analytics_model/visualization_objects/*.yaml'))
+        elif file_type == 'dashboard':
+            return list(layout_root_path.glob('**/analytics_model/analytical_dashboards/*.yaml'))
+        else:
+            return []
+
+    def generate_element_prompt(self, element: dict, element_type: str) -> str:
+        """Generate a prompt for an individual element."""
+        element_id = element.get('id')
+        title = element.get('title')
+        return (
+            f"Generate a descriptive text for a {element_type} with business meaning for an ecommerce solution. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end. "
+            f"The documentation must fit into 256 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+        )
 
     def store_current_layout(self, layout_root_path: Path) -> None:
         try:
@@ -75,7 +153,7 @@ class YAMLProcessor:
             logger.info("Workspace layout stored successfully.")
         except Exception as e:
             logger.error(f"Failed to store workspace layout: {e}")
-            sys.exit(1)  # This now works correctly
+            sys.exit(1)
 
     def process_date_instance_files(self, layout_root_path: Path) -> None:
         logger.info("Processing date instance files...")

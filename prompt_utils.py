@@ -1,0 +1,98 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def generate_prompt(data: dict, description_type: str, descriptions_dict: dict) -> str:
+    title = data.get('title', '')
+    element_id = data.get('id', '')
+
+    if description_type == "metric":
+        maql = data.get('content', {}).get('maql', '')
+        format_ = data.get('content', {}).get('format', '')
+        return (
+            f"Generate a descriptive text for a {description_type} with business meaning "
+            f"so I can find it with various similarity search algorithms. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end "
+            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+            f"MAQL: {maql}\n"
+        )
+    elif description_type == "visualization object":
+        content = data.get('content', {})
+        visualization_url = data.get('visualizationUrl', '')
+        extracted_ids = extract_ids_from_visualization_object(content, descriptions_dict)
+        context = "\n".join(
+            [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
+
+        return (
+            f"Generate a descriptive text for a {description_type} with business meaning "
+            f"so I can find it with various similarity search algorithms. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end "
+            f"Do not mention visualization id "
+            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+            f"Visualization URL: {visualization_url}\n"
+            f"Context:\n{context}\n"
+        )
+    elif description_type == "analytical dashboard":
+        layout = data.get('layout', {})
+        extracted_ids = extract_ids_from_dashboard(layout, descriptions_dict)
+        context = "\n".join(
+            [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
+
+        return (
+            f"Generate a descriptive text for an {description_type} with business meaning "
+            f"so I can find it with various similarity search algorithms. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end "
+            f"The documentation must fit into 256 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+            f"Context:\n{context}\n"
+        )
+    else:
+        return (
+            f"Generate a descriptive text with business meaning for a {description_type}. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end "
+            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+        )
+
+
+def extract_ids_from_visualization_object(content: dict, descriptions_dict: dict) -> list:
+    identifiers = []
+    for bucket in content.get('buckets', []):
+        for item in bucket.get('items', []):
+            measure = item.get('measure', {})
+            definition = measure.get('definition', {})
+            if 'measureDefinition' in definition:
+                identifiers.append(measure['definition']['measureDefinition']['item']['identifier']['id'])
+            elif 'previousPeriodMeasure' in definition:
+                for date_dataset in definition['previousPeriodMeasure']['dateDataSets']:
+                    identifiers.append(date_dataset['dataSet']['identifier']['id'])
+                identifiers.append(definition['previousPeriodMeasure']['measureIdentifier'])
+
+    for filter_item in content.get('filters', []):
+        if 'relativeDateFilter' in filter_item:
+            identifiers.append(filter_item['relativeDateFilter']['dataSet']['identifier']['id'])
+
+    return identifiers
+
+
+def extract_ids_from_dashboard(layout: dict, descriptions_dict: dict) -> list:
+    identifiers = []
+    for section in layout.get('sections', []):
+        for item in section.get('items', []):
+            widget = item.get('widget', {})
+            insight = widget.get('insight', {})
+            if 'identifier' in insight:
+                identifiers.append(insight['identifier']['id'])
+
+    return identifiers
