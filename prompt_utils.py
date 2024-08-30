@@ -7,12 +7,13 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict) 
     title = data.get('title', '')
     element_id = data.get('id', '')
 
-    if description_type == "metric":
+    if description_type == "metric" or description_type == "non-metric":
         maql = data.get('content', {}).get('maql', '')
         return (
             f"Generate a concise business-relevant description for a {description_type}. This is a metric, "
             f"not a dataset. The description should focus on what the metric measures or calculates "
             f"based on the MAQL (Metric Aggregation Query Language) provided. Do not describe it as a dataset. "
+            f"it might be composed of a dataset, but it is operating on top of it."
             f"Ensure the description highlights the key insights or value this metric provides, "
             f"without technical jargon or irrelevant details. The description should fit within 128 characters.\n"
             f"Title: {title}\n"

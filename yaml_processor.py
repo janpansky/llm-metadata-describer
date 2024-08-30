@@ -11,12 +11,10 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-
 def extract_ids_from_maql(maql: str) -> list:
     pattern = r'\b(fact|attribute|metric|label|dataset)/([a-zA-Z0-9_]+)\b'
     matches = re.findall(pattern, maql)
     return [f"{type_}/{id_}" for type_, id_ in matches]
-
 
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
@@ -54,6 +52,25 @@ class YAMLProcessor:
         if not data:
             return
 
+        if file_type == 'date instance':
+            self._process_date_instance(data)
+        elif file_type == 'dataset':
+            self._process_dataset(data)
+        elif file_type == 'non-metric':
+            self._process_non_metric(data)
+        elif file_type == 'metric':
+            self._process_metric(data)
+        elif file_type == 'visualization object':
+            self._process_visualization_object(data)
+        elif file_type == 'dashboard':
+            self._process_dashboard(data)
+
+        self.save_yaml_file(yaml_file, data)
+
+    def _process_date_instance(self, data: dict) -> None:
+        self._update_element_description(data, 'date instance')
+
+    def _process_dataset(self, data: dict) -> None:
         # Process dataset-level description
         self._update_element_description(data, 'dataset')
 
@@ -71,7 +88,21 @@ class YAMLProcessor:
             for fact in data['facts']:
                 self._update_element_description(fact, 'fact')
 
-        self.save_yaml_file(yaml_file, data)
+    def _process_non_metric(self, data: dict) -> None:
+        maql = data.get('content', {}).get('maql', '')
+        if not self.has_metric_references(maql):
+            self._update_element_description(data, 'non-metric')
+
+    def _process_metric(self, data: dict) -> None:
+        maql = data.get('content', {}).get('maql', '')
+        if self.has_metric_references(maql):
+            self._update_element_description(data, 'metric')
+
+    def _process_visualization_object(self, data: dict) -> None:
+        self._update_element_description(data, 'visualization object')
+
+    def _process_dashboard(self, data: dict) -> None:
+        self._update_element_description(data, 'dashboard')
 
     def _update_element_description(self, element: dict, element_type: str) -> None:
         element_id = element.get('id')
@@ -81,14 +112,14 @@ class YAMLProcessor:
         else:
             prompt = generate_prompt(element, element_type, self.descriptions_dict)
             description = self.llm_client.call(prompt)
-            if description and (element_type != "metric" or validate_metric_description(description)):
+            if description and (element_type != "metric" or self.validate_metric_description(description)):
                 element['description'] = description
                 self.descriptions_dict[element_id] = description
                 logger.info(f"Generated description for {element_type} ID {element_id}: {description}")
             else:
                 logger.error(f"Invalid description generated for {element_type} ID {element_id}")
 
-    def validate_metric_description(description: str) -> bool:
+    def validate_metric_description(self, description: str) -> bool:
         return "dataset" not in description.lower()
 
     def get_file_paths(self, layout_root_path: Path, file_type: str) -> List[Path]:
@@ -135,50 +166,6 @@ class YAMLProcessor:
             logger.error(f"Failed to save YAML file {yaml_file}: {e}")
             sys.exit(1)
 
-    def update_metric_file(self, yaml_file: Path, data: dict) -> None:
-        logger.info(f"Updating metric file: {yaml_file}")
-        data = self.update_metric_description(data)
-        self.save_yaml_file(yaml_file, data)
-
-    def update_dataset_description(self, data: dict) -> dict:
-        return self._update_description(data, description_type="dataset")
-
-    def update_metric_description(self, data: dict) -> dict:
-        return self._update_description(data, description_type="metric")
-
-    def update_date_instance_description(self, data: dict) -> dict:
-        return self._update_description(data, description_type="date instance")
-
-    def update_visualization_object_description(self, data: dict) -> dict:
-        return self._update_description(data, description_type="visualization object")
-
-    def update_dashboard_description(self, data: dict) -> dict:
-        return self._update_description(data, description_type="analytical dashboard")
-
-    def _update_description(self, data: dict, description_type: str) -> dict:
-        element_id = data.get('id')
-        if not element_id:
-            raise ValueError(f"Element ID is missing for {description_type}")
-
-        if element_id in self.descriptions_dict:
-            data['description'] = self.descriptions_dict[element_id]
-            logger.debug(f"Skipped {description_type} description update for ID {element_id}, already present.")
-            return data
-
-        prompt = generate_prompt(data, description_type, self.descriptions_dict)
-        logger.debug(f"Prompt for LLM: {prompt}")
-        description = self.llm_client.call(prompt)
-        logger.debug(f"Generated description: {description}")
-
-        if not description:
-            logger.error(f"Failed to generate a description for {description_type} ID {element_id}")
-        else:
-            data['description'] = description
-            self.descriptions_dict[element_id] = description
-            logger.info(f"Updated description for {description_type} ID {element_id}: {description}")
-
-        return data
-
     def has_metric_references(self, maql: str) -> bool:
         referenced_ids = extract_ids_from_maql(maql)
         has_references = any(ref_id.startswith('metric/') for ref_id in referenced_ids)
@@ -209,7 +196,6 @@ class YAMLProcessor:
         else:
             return {}
 
-
 # Main execution script
 if __name__ == "__main__":
     import logging
@@ -220,7 +206,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-
 
     def main():
         config = load_config()
@@ -245,6 +230,5 @@ if __name__ == "__main__":
         logger.info("Descriptions Dictionary:")
         for element_id, description in processor.descriptions_dict.items():
             logger.info(f"{element_id}: {description}")
-
 
     main()
