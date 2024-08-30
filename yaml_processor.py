@@ -1,5 +1,6 @@
 import yaml
 import re
+import sys
 from pathlib import Path
 from gooddata_sdk import GoodDataSdk
 from typing import Optional, Dict
@@ -9,10 +10,12 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
 def extract_ids_from_maql(maql: str) -> list:
     pattern = r'\b(fact|attribute|metric|label|dataset)/([a-zA-Z0-9_]+)\b'
     matches = re.findall(pattern, maql)
     return [f"{type_}/{id_}" for type_, id_ in matches]
+
 
 def extract_ids_from_visualization_object(content: dict) -> list:
     identifiers = []
@@ -33,6 +36,7 @@ def extract_ids_from_visualization_object(content: dict) -> list:
 
     return identifiers
 
+
 def extract_ids_from_dashboard(layout: dict) -> list:
     identifiers = []
     for section in layout.get('sections', []):
@@ -43,6 +47,7 @@ def extract_ids_from_dashboard(layout: dict) -> list:
                 identifiers.append(insight['identifier']['id'])
 
     return identifiers
+
 
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
@@ -70,7 +75,7 @@ class YAMLProcessor:
             logger.info("Workspace layout stored successfully.")
         except Exception as e:
             logger.error(f"Failed to store workspace layout: {e}")
-            sys.exit(1)
+            sys.exit(1)  # This now works correctly
 
     def process_date_instance_files(self, layout_root_path: Path) -> None:
         logger.info("Processing date instance files...")
@@ -101,12 +106,57 @@ class YAMLProcessor:
             element_id = data.get('id')
             logger.debug(f"Processing dataset with ID: {element_id}")
 
+            # Update dataset-level description
             if element_id in self.descriptions_dict:
                 data['description'] = self.descriptions_dict[element_id]
                 logger.info(f"Applied existing description for dataset ID {element_id}: {data['description']}")
             else:
                 logger.info(f"Generating description for dataset ID {element_id}.")
                 data = self.update_dataset_description(data)
+
+            # Process attributes
+            if 'attributes' in data:
+                for attribute in data['attributes']:
+                    attr_id = attribute.get('id')
+                    if attr_id in self.descriptions_dict:
+                        attribute['description'] = self.descriptions_dict[attr_id]
+                        logger.info(
+                            f"Applied existing description for attribute ID {attr_id}: {attribute['description']}")
+                    else:
+                        logger.info(f"Generating description for attribute ID {attr_id}.")
+                        attribute['description'] = self.generate_description_for_element(
+                            attr_id, attribute.get('title'), description_type="attribute"
+                        )
+                        self.descriptions_dict[attr_id] = attribute['description']
+
+                    # Process labels within attributes
+                    if 'labels' in attribute:
+                        for label in attribute['labels']:
+                            label_id = label.get('id')
+                            if label_id in self.descriptions_dict:
+                                label['description'] = self.descriptions_dict[label_id]
+                                logger.info(
+                                    f"Applied existing description for label ID {label_id}: {label['description']}")
+                            else:
+                                logger.info(f"Generating description for label ID {label_id}.")
+                                label['description'] = self.generate_description_for_element(
+                                    label_id, label.get('title'), description_type="label"
+                                )
+                                self.descriptions_dict[label_id] = label['description']
+
+            # Process facts
+            if 'facts' in data:
+                for fact in data['facts']:
+                    fact_id = fact.get('id')
+                    if fact_id in self.descriptions_dict:
+                        fact['description'] = self.descriptions_dict[fact_id]
+                        logger.info(f"Applied existing description for fact ID {fact_id}: {fact['description']}")
+                    else:
+                        logger.info(f"Generating description for fact ID {fact_id}.")
+                        fact['description'] = self.generate_description_for_element(
+                            fact_id, fact.get('title'), description_type="fact"
+                        )
+                        self.descriptions_dict[fact_id] = fact['description']
 
             self.save_yaml_file(yaml_file, data)
 
@@ -164,7 +214,8 @@ class YAMLProcessor:
 
             if element_id in self.descriptions_dict:
                 data['description'] = self.descriptions_dict[element_id]
-                logger.info(f"Applied existing description for visualization object ID {element_id}: {data['description']}")
+                logger.info(
+                    f"Applied existing description for visualization object ID {element_id}: {data['description']}")
             else:
                 logger.info(f"Generating description for visualization object ID {element_id}.")
                 data = self.update_visualization_object_description(data)
@@ -212,9 +263,7 @@ class YAMLProcessor:
 
     def update_metric_file(self, yaml_file: Path, data: dict) -> None:
         logger.info(f"Updating metric file: {yaml_file}")
-
         data = self.update_metric_description(data)
-
         self.save_yaml_file(yaml_file, data)
 
     def update_dataset_description(self, data: dict) -> dict:
@@ -323,6 +372,24 @@ class YAMLProcessor:
         logger.debug(f"MAQL: {maql}, has metric references: {has_references}")
         return has_references
 
+    def generate_description_for_element(self, element_id: str, title: str, description_type: str) -> str:
+        prompt = (
+            f"Generate a descriptive text for a {description_type} with business meaning for an ecommerce solution. "
+            f"Do not describe the fields themselves. "
+            f"Without any single or double quotes in the beginning and at the end. "
+            f"The documentation must fit into 256 characters based on the following details:\n"
+            f"Title: {title}\n"
+            f"ID: {element_id}\n"
+        )
+        logger.debug(f"Prompt for LLM: {prompt}")
+        description = self.llm_client.call(prompt)
+        logger.debug(f"Generated description: {description}")
+
+        if not description:
+            logger.error(f"Failed to generate a description for {description_type} ID {element_id}")
+            return ""
+        return description
+
     def save_descriptions(self) -> None:
         descriptions_file = self.root_path / "descriptions.yaml"
         try:
@@ -347,6 +414,7 @@ class YAMLProcessor:
         else:
             return {}
 
+
 # Main execution script
 if __name__ == "__main__":
     import logging
@@ -357,6 +425,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+
 
     def main():
         config = load_config()
@@ -381,5 +450,6 @@ if __name__ == "__main__":
         logger.info("Descriptions Dictionary:")
         for element_id, description in processor.descriptions_dict.items():
             logger.info(f"{element_id}: {description}")
+
 
     main()
