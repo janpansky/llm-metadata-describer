@@ -109,7 +109,8 @@ class YAMLProcessor:
         self._update_element_description(data, 'visualization object', extracted_ids)
 
     def _process_dashboard(self, data: dict) -> None:
-        self._update_element_description(data, 'dashboard')
+        extracted_ids = extract_ids_from_dashboard(data.get('layout', {}), self.descriptions_dict)
+        self._update_element_description(data, 'dashboard', extracted_ids)
 
     def extract_ids_from_content(self, content: dict) -> List[str]:
         identifiers = []
