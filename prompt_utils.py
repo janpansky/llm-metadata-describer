@@ -9,17 +9,17 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict) 
 
     if description_type == "metric":
         maql = data.get('content', {}).get('maql', '')
-        format_ = data.get('content', {}).get('format', '')
         return (
-            f"Generate a descriptive text for a {description_type} with business meaning "
-            f"so I can find it with various similarity search algorithms. "
-            f"Do not describe the fields themselves. "
-            f"Without any single or double quotes in the beginning and at the end "
-            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Generate a concise business-relevant description for a {description_type}. This is a metric, "
+            f"not a dataset. The description should focus on what the metric measures or calculates "
+            f"based on the MAQL (Metric Aggregation Query Language) provided. Do not describe it as a dataset. "
+            f"Ensure the description highlights the key insights or value this metric provides, "
+            f"without technical jargon or irrelevant details. The description should fit within 128 characters.\n"
             f"Title: {title}\n"
             f"ID: {element_id}\n"
             f"MAQL: {maql}\n"
         )
+
     elif description_type == "visualization object":
         content = data.get('content', {})
         visualization_url = data.get('visualizationUrl', '')
@@ -28,7 +28,7 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict) 
             [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
         return (
-            f"Generate a descriptive text for a {description_type} with business meaning "
+            f"Generate a descriptive text for a {description_type} with a business meaning "
             f"so I can find it with various similarity search algorithms. "
             f"Do not describe the fields themselves. "
             f"Without any single or double quotes in the beginning and at the end "
@@ -46,7 +46,7 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict) 
             [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
         return (
-            f"Generate a descriptive text for an {description_type} with business meaning "
+            f"Generate a descriptive text for an {description_type} with a business meaning "
             f"so I can find it with various similarity search algorithms. "
             f"Do not describe the fields themselves. "
             f"Without any single or double quotes in the beginning and at the end "
