@@ -11,10 +11,12 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
 def extract_ids_from_maql(maql: str) -> list:
     pattern = r'\b(fact|attribute|metric|label|dataset)/([a-zA-Z0-9_]+)\b'
     matches = re.findall(pattern, maql)
     return [f"{type_}/{id_}" for type_, id_ in matches]
+
 
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
@@ -99,18 +101,43 @@ class YAMLProcessor:
             self._update_element_description(data, 'metric')
 
     def _process_visualization_object(self, data: dict) -> None:
-        self._update_element_description(data, 'visualization object')
+        # Extract ids from the content to use them in the prompt
+        content = data.get('content', {})
+        extracted_ids = self.extract_ids_from_content(content)
+
+        # Update the element description using the extracted ids
+        self._update_element_description(data, 'visualization object', extracted_ids)
 
     def _process_dashboard(self, data: dict) -> None:
         self._update_element_description(data, 'dashboard')
 
-    def _update_element_description(self, element: dict, element_type: str) -> None:
+    def extract_ids_from_content(self, content: dict) -> List[str]:
+        identifiers = []
+        # Traverse the content structure to find 'id' keys
+        if 'buckets' in content:
+            for bucket in content['buckets']:
+                for item in bucket.get('items', []):
+                    if 'measure' in item:
+                        measure = item['measure']
+                        definition = measure.get('definition', {})
+                        if 'measureDefinition' in definition:
+                            identifiers.append(definition['measureDefinition']['item']['identifier']['id'])
+                    elif 'attribute' in item:
+                        attribute = item['attribute']
+                        display_form = attribute.get('displayForm', {})
+                        if 'identifier' in display_form:
+                            identifiers.append(display_form['identifier']['id'])
+
+        return identifiers
+
+    def _update_element_description(self, element: dict, element_type: str,
+                                    extracted_ids: Optional[List[str]] = None) -> None:
         element_id = element.get('id')
         if element_id in self.descriptions_dict:
             element['description'] = self.descriptions_dict[element_id]
             logger.info(f"Applied existing description for {element_type} ID {element_id}: {element['description']}")
         else:
-            prompt = generate_prompt(element, element_type, self.descriptions_dict)
+            prompt = generate_prompt(element, element_type, self.descriptions_dict, extracted_ids)
             description = self.llm_client.call(prompt)
             if description and (element_type != "metric" or self.validate_metric_description(description)):
                 element['description'] = description
@@ -196,6 +223,7 @@ class YAMLProcessor:
         else:
             return {}
 
+
 # Main execution script
 if __name__ == "__main__":
     import logging
@@ -206,6 +234,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+
 
     def main():
         config = load_config()
@@ -230,5 +259,6 @@ if __name__ == "__main__":
         logger.info("Descriptions Dictionary:")
         for element_id, description in processor.descriptions_dict.items():
             logger.info(f"{element_id}: {description}")
+
 
     main()
