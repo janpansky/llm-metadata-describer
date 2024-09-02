@@ -29,8 +29,8 @@ class YAMLProcessor:
         self.process_files_in_batches(layout_root_path, 'dataset')
         self.process_files_in_batches(layout_root_path, 'non-metric')
         self.process_files_in_batches(layout_root_path, 'metric')
-        # self.process_files_in_batches(layout_root_path, 'visualization object')
-        # self.process_files_in_batches(layout_root_path, 'dashboard')
+        self.process_files_in_batches(layout_root_path, 'visualization object')
+        self.process_files_in_batches(layout_root_path, 'dashboard')
         self.save_descriptions()
 
     def process_files_in_batches(self, layout_root_path: Path, file_type: str) -> None:
