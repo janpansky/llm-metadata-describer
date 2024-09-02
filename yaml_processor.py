@@ -1,41 +1,15 @@
 import yaml
-import re
 import sys
 from pathlib import Path
 from gooddata_sdk import GoodDataSdk
 from typing import Optional, Dict, List
 from llm_client import LLMClient
-from prompt_utils import generate_prompt, extract_ids_from_visualization_object, extract_ids_from_dashboard
+from prompt_utils import generate_prompt, extract_ids_from_visualization_object, extract_ids_from_dashboard, \
+    extract_ids_from_maql
 import logging
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
-
-
-def extract_ids_from_maql(maql: str) -> list:
-    pattern = r'\b(fact|attribute|metric|label|dataset)/([a-zA-Z0-9_]+)\b'
-    matches = re.findall(pattern, maql)
-    return [f"{type_}/{id_}" for type_, id_ in matches]
-
-
-def extract_ids_from_visualization_object(content: dict, descriptions_dict: dict) -> list:
-    identifiers = []
-    for bucket in content.get('buckets', []):
-        for item in bucket.get('items', []):
-            measure = item.get('measure', {})
-            definition = measure.get('definition', {})
-            if 'measureDefinition' in definition:
-                identifiers.append(measure['definition']['measureDefinition']['item']['identifier']['id'])
-            elif 'previousPeriodMeasure' in definition:
-                for date_dataset in definition['previousPeriodMeasure']['dateDataSets']:
-                    identifiers.append(date_dataset['dataSet']['identifier']['id'])
-                identifiers.append(definition['previousPeriodMeasure']['measureIdentifier'])
-
-    for filter_item in content.get('filters', []):
-        if 'relativeDateFilter' in filter_item:
-            identifiers.append(filter_item['relativeDateFilter']['dataSet']['identifier']['id'])
-
-    return identifiers
 
 
 class YAMLProcessor:
@@ -55,8 +29,8 @@ class YAMLProcessor:
         self.process_files_in_batches(layout_root_path, 'dataset')
         self.process_files_in_batches(layout_root_path, 'non-metric')
         self.process_files_in_batches(layout_root_path, 'metric')
-        self.process_files_in_batches(layout_root_path, 'visualization object')
-        self.process_files_in_batches(layout_root_path, 'dashboard')
+        # self.process_files_in_batches(layout_root_path, 'visualization object')
+        # self.process_files_in_batches(layout_root_path, 'dashboard')
         self.save_descriptions()
 
     def process_files_in_batches(self, layout_root_path: Path, file_type: str) -> None:
@@ -107,13 +81,19 @@ class YAMLProcessor:
 
     def _process_non_metric(self, data: dict) -> None:
         maql = data.get('content', {}).get('maql', '')
+        logger.debug(f"Processing non-metric with MAQL: {maql}")
+
         if not self.has_metric_references(maql):
-            self._update_element_description(data, 'non-metric')
+            non_metric_ids = extract_ids_from_maql(maql)
+            self._update_element_description(data, 'non-metric', non_metric_ids)
 
     def _process_metric(self, data: dict) -> None:
         maql = data.get('content', {}).get('maql', '')
+        logger.debug(f"Processing metric with MAQL: {maql}")
+
         if self.has_metric_references(maql):
-            self._update_element_description(data, 'metric')
+            metric_ids = extract_ids_from_maql(maql)
+            self._update_element_description(data, 'metric', metric_ids)
 
     def _process_visualization_object(self, data: dict) -> None:
         extracted_ids = extract_ids_from_visualization_object(data.get('content', {}), self.descriptions_dict)
@@ -146,16 +126,20 @@ class YAMLProcessor:
         else:
             prompt = generate_prompt(element, element_type, self.descriptions_dict, extracted_ids or [])
 
-            # Debugging line to print the prompt
             logger.debug(f"Generated prompt for {element_type} ID {element_id}: {prompt}")
 
-            description = self.llm_client.call(prompt)
-            if description and (element_type != "metric" or self.validate_metric_description(description)):
-                element['description'] = description
-                self.descriptions_dict[element_id] = description
-                logger.info(f"Generated description for {element_type} ID {element_id}: {description}")
-            else:
-                logger.error(f"Invalid description generated for {element_type} ID {element_id}")
+            try:
+                description = self.llm_client.call(prompt)
+                if description and (element_type != "metric" or self.validate_metric_description(description)):
+                    element['description'] = description
+                    self.descriptions_dict[element_id] = description
+                    logger.info(f"Generated description for {element_type} ID {element_id}: {description}")
+                else:
+                    logger.error(f"Invalid description generated for {element_type} ID {element_id}")
+                    return  # Skip to the next function or file
+            except Exception as e:
+                logger.error(f"Failed to generate description for {element_type} ID {element_id}: {e}")
+                return  # Skip to the next function or file
 
     def validate_metric_description(self, description: str) -> bool:
         return "dataset" not in description.lower()
@@ -205,8 +189,9 @@ class YAMLProcessor:
             sys.exit(1)
 
     def has_metric_references(self, maql: str) -> bool:
+        logger.debug("Checking for metric references in MAQL.")
         referenced_ids = extract_ids_from_maql(maql)
-        has_references = any(ref_id.startswith('metric/') for ref_id in referenced_ids)
+        has_references = any(ref_id.startswith('duration_in_0_-_mql_hrs') for ref_id in referenced_ids)
         logger.debug(f"MAQL: {maql}, has metric references: {has_references}")
         return has_references
 

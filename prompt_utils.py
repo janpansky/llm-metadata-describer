@@ -1,3 +1,4 @@
+import re
 import logging
 from typing import List
 
@@ -8,14 +9,26 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict, 
     title = data.get('title', '')
     element_id = data.get('id', '')
 
+    # Generate context from the descriptions_dict based on extracted IDs
     context = "\n".join(
-        [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
+        [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids]
+    )
 
     # Debugging: Print the context before returning the prompt
     logger.debug(f"Context for {description_type} ID {element_id}: {context}")
 
     if description_type == "metric" or description_type == "non-metric":
         maql = data.get('content', {}).get('maql', '')
+
+        # Extract relevant IDs from MAQL to build the context
+        metric_ids = extract_ids_from_maql(maql)
+        metric_context = "\n".join(
+            [f"{id_}: {descriptions_dict.get(id_, 'No description available')}" for id_ in metric_ids]
+        )
+
+        # Debugging: Print the metric context before returning the prompt
+        logger.debug(f"Metric context for {element_id}: {metric_context}")
+
         return (
             f"Generate a concise business-relevant description for a {description_type}. This is a metric, "
             f"not a dataset. The description should focus on what the metric measures or calculates "
@@ -26,6 +39,7 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict, 
             f"Title: {title}\n"
             f"ID: {element_id}\n"
             f"MAQL: {maql}\n"
+            f"Context:\n{metric_context}\n"
         )
 
     elif description_type == "visualization object":
@@ -148,5 +162,14 @@ def extract_ids_from_dashboard(layout: dict, descriptions_dict: dict) -> list:
 
     return identifiers
 
+def extract_ids_from_maql(maql: str) -> list:
+    logger.debug("extract_ids_from_maql function called.")
+    logger.debug(f"MAQL provided: {maql}")
 
+    pattern = r'\{(metric|fact|attribute|label|dataset)/([a-zA-Z0-9_-]+)\}'
+    matches = re.findall(pattern, maql)
+    ids = [id_ for _, id_ in matches]  # Extract only the ID part after "/"
+
+    logger.debug(f"Extracted IDs from MAQL: {ids}")
+    return ids
 
