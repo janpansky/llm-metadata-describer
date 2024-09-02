@@ -18,6 +18,26 @@ def extract_ids_from_maql(maql: str) -> list:
     return [f"{type_}/{id_}" for type_, id_ in matches]
 
 
+def extract_ids_from_visualization_object(content: dict, descriptions_dict: dict) -> list:
+    identifiers = []
+    for bucket in content.get('buckets', []):
+        for item in bucket.get('items', []):
+            measure = item.get('measure', {})
+            definition = measure.get('definition', {})
+            if 'measureDefinition' in definition:
+                identifiers.append(measure['definition']['measureDefinition']['item']['identifier']['id'])
+            elif 'previousPeriodMeasure' in definition:
+                for date_dataset in definition['previousPeriodMeasure']['dateDataSets']:
+                    identifiers.append(date_dataset['dataSet']['identifier']['id'])
+                identifiers.append(definition['previousPeriodMeasure']['measureIdentifier'])
+
+    for filter_item in content.get('filters', []):
+        if 'relativeDateFilter' in filter_item:
+            identifiers.append(filter_item['relativeDateFilter']['dataSet']['identifier']['id'])
+
+    return identifiers
+
+
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
                  root_path: Path, batch_size: int = 50):
@@ -54,10 +74,10 @@ class YAMLProcessor:
         if not data:
             return
 
-        if file_type == 'date instance':
-            self._process_date_instance(data)
-        elif file_type == 'dataset':
+        if file_type == 'dataset':
             self._process_dataset(data)
+        elif file_type == 'date instance':
+            self._process_date_instance(data)
         elif file_type == 'non-metric':
             self._process_non_metric(data)
         elif file_type == 'metric':
@@ -65,23 +85,18 @@ class YAMLProcessor:
         elif file_type == 'visualization object':
             self._process_visualization_object(data)
         elif file_type == 'dashboard':
+            logger.debug("Processing a dashboard file.")
             self._process_dashboard(data)
 
         self.save_yaml_file(yaml_file, data)
 
-    def _process_date_instance(self, data: dict) -> None:
-        self._update_element_description(data, 'date instance')
-
     def _process_dataset(self, data: dict) -> None:
-        # Process dataset-level description
         self._update_element_description(data, 'dataset')
 
-        # Process attributes, labels, and facts within the dataset
         if 'attributes' in data:
             for attribute in data['attributes']:
                 self._update_element_description(attribute, 'attribute')
 
-                # Process labels within attributes
                 if 'labels' in attribute:
                     for label in attribute['labels']:
                         self._update_element_description(label, 'label')
@@ -101,44 +116,39 @@ class YAMLProcessor:
             self._update_element_description(data, 'metric')
 
     def _process_visualization_object(self, data: dict) -> None:
-        # Extract ids from the content to use them in the prompt
-        content = data.get('content', {})
-        extracted_ids = self.extract_ids_from_content(content)
-
-        # Update the element description using the extracted ids
+        extracted_ids = extract_ids_from_visualization_object(data.get('content', {}), self.descriptions_dict)
         self._update_element_description(data, 'visualization object', extracted_ids)
 
     def _process_dashboard(self, data: dict) -> None:
-        extracted_ids = extract_ids_from_dashboard(data.get('layout', {}), self.descriptions_dict)
+        logger.debug("_process_dashboard method called.")
+
+        # Access the layout under the content key
+        layout_data = data.get('content', {}).get('layout', {})
+
+        # Log layout data before passing it to the function
+        logger.debug(f"Layout data extracted for processing: {layout_data}")
+
+        if not layout_data:
+            logger.error("No layout data found in dashboard YAML under 'content'.")
+
+        extracted_ids = extract_ids_from_dashboard(layout_data, self.descriptions_dict)
+
         self._update_element_description(data, 'dashboard', extracted_ids)
 
-    def extract_ids_from_content(self, content: dict) -> List[str]:
-        identifiers = []
-        # Traverse the content structure to find 'id' keys
-        if 'buckets' in content:
-            for bucket in content['buckets']:
-                for item in bucket.get('items', []):
-                    if 'measure' in item:
-                        measure = item['measure']
-                        definition = measure.get('definition', {})
-                        if 'measureDefinition' in definition:
-                            identifiers.append(definition['measureDefinition']['item']['identifier']['id'])
-                    elif 'attribute' in item:
-                        attribute = item['attribute']
-                        display_form = attribute.get('displayForm', {})
-                        if 'identifier' in display_form:
-                            identifiers.append(display_form['identifier']['id'])
+    def _process_date_instance(self, data: dict) -> None:
+        self._update_element_description(data, 'date instance')
 
-        return identifiers
-
-    def _update_element_description(self, element: dict, element_type: str,
-                                    extracted_ids: Optional[List[str]] = None) -> None:
+    def _update_element_description(self, element: dict, element_type: str, extracted_ids: List[str] = None) -> None:
         element_id = element.get('id')
         if element_id in self.descriptions_dict:
             element['description'] = self.descriptions_dict[element_id]
             logger.info(f"Applied existing description for {element_type} ID {element_id}: {element['description']}")
         else:
-            prompt = generate_prompt(element, element_type, self.descriptions_dict, extracted_ids)
+            prompt = generate_prompt(element, element_type, self.descriptions_dict, extracted_ids or [])
+
+            # Debugging line to print the prompt
+            logger.debug(f"Generated prompt for {element_type} ID {element_id}: {prompt}")
+
             description = self.llm_client.call(prompt)
             if description and (element_type != "metric" or self.validate_metric_description(description)):
                 element['description'] = description
@@ -178,7 +188,7 @@ class YAMLProcessor:
         try:
             with open(yaml_file, 'r', encoding='utf-8') as file:
                 data = yaml.safe_load(file)
-            logger.debug(f"Loaded data from {yaml_file}: {data}")
+            logger.debug(f"Loaded data from {yaml_file}: {data}")  # Check the structure of loaded YAML
             return data
         except Exception as e:
             logger.error(f"Failed to load YAML file {yaml_file}: {e}")
