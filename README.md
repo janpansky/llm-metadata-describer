@@ -46,6 +46,11 @@ llm-metadata-describer/
    ```sh
    pip install -r requirements.txt
    ```
+4. Copy the provided `.env` file and fill in your own secrets (do **not** commit this file to git):
+   ```sh
+   cp .env .env.local  # or edit .env directly if not versioned
+   # Edit .env/.env.local and set your GOODDATA_API_TOKEN, LLM_API_TOKEN, etc.
+   ```
 
 ## Usage
 ### Basic

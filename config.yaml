@@ -1,6 +1,0 @@
-hostname: "https://navy-blue-eagle.trial.cloud.gooddata.com/"
-api_token: "amFuLnBhbnNreTpnZDM6T1FpbFlCNmRvRWdtVU15SW5IbFU2MWF2L3ViazJhVWE="
-llm_api_token: "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"
-workspace_id: "gdc_demo_f92dbcad-4254-421d-9256-c612f61b72ab"
-layout_root_directory: "workspace_layout_directory"
-enable_load_workspace: true

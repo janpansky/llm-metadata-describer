@@ -5,8 +5,12 @@
 __pycache__/
 *.pyc
 
-# Virtual environments
+# Python virtual environment
 venv/
+
+# Environment variable files (do not commit secrets)
+.env
+.env.local
 
 # IDE config
 .idea/

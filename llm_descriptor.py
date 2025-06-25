@@ -1,4 +1,5 @@
 import yaml
+import sys
 import re
 from pathlib import Path
 from gooddata_sdk import GoodDataSdk
