@@ -3,7 +3,7 @@ from pathlib import Path
 from load_env import load_config
 from sdk_initialization import initialize_sdk
 from llm_client import LLMClient
-from yaml_processor import YAMLProcessor
+from llm_descriptor import YAMLProcessor
 from gooddata_sdk import GoodDataSdk
 
 logging.basicConfig(level=logging.INFO)
@@ -51,8 +51,7 @@ def main():
         sdk=sdk,
         llm_client=llm_client,
         description_source='api',
-        root_path=project_base_path,
-        batch_size=50  # Adjust the batch size as needed
+        root_path=project_base_path
     )
 
     processor.generate_descriptions(layout_root_path=layout_root_path)
