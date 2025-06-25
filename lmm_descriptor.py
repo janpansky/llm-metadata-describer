@@ -9,10 +9,12 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
 def extract_ids_from_maql(maql: str) -> list:
     pattern = r'\b(fact|attribute|metric|label|dataset)/([a-zA-Z0-9_]+)\b'
     matches = re.findall(pattern, maql)
     return [f"{type_}/{id_}" for type_, id_ in matches]
+
 
 def extract_ids_from_visualization_object(content: dict) -> list:
     identifiers = []
@@ -33,6 +35,7 @@ def extract_ids_from_visualization_object(content: dict) -> list:
 
     return identifiers
 
+
 def extract_ids_from_dashboard(layout: dict) -> list:
     identifiers = []
     for section in layout.get('sections', []):
@@ -43,6 +46,7 @@ def extract_ids_from_dashboard(layout: dict) -> list:
                 identifiers.append(insight['identifier']['id'])
 
     return identifiers
+
 
 class YAMLProcessor:
     def __init__(self, workspace_id: str, sdk: GoodDataSdk, llm_client: LLMClient, description_source: str,
@@ -164,7 +168,8 @@ class YAMLProcessor:
 
             if element_id in self.descriptions_dict:
                 data['description'] = self.descriptions_dict[element_id]
-                logger.info(f"Applied existing description for visualization object ID {element_id}: {data['description']}")
+                logger.info(
+                    f"Applied existing description for visualization object ID {element_id}: {data['description']}")
             else:
                 logger.info(f"Generating description for visualization object ID {element_id}.")
                 data = self.update_visualization_object_description(data)
@@ -347,6 +352,7 @@ class YAMLProcessor:
         else:
             return {}
 
+
 # Main execution script
 if __name__ == "__main__":
     import logging
@@ -355,8 +361,9 @@ if __name__ == "__main__":
     from sdk_initialization import initialize_sdk
     from llm_client import LLMClient
 
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+
+    # logging.basicConfig(level=logging.INFO)
+    # logger = logging.getLogger(__name__)
 
     def main():
         config = load_config()
@@ -378,8 +385,9 @@ if __name__ == "__main__":
 
         processor.generate_descriptions(layout_root_path=layout_root_path)
 
-        logger.info("Descriptions Dictionary:")
-        for element_id, description in processor.descriptions_dict.items():
-            logger.info(f"{element_id}: {description}")
+        # logger.info("Descriptions Dictionary:")
+        # for element_id, description in processor.descriptions_dict.items():
+        #     logger.info(f"{element_id}: {description}")
+
 
     main()

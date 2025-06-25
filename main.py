@@ -46,12 +46,6 @@ def main():
     layout_root_directory = config.get('layout_root_directory', 'workspace_layout_directory')  # Use default value
     layout_root_path = project_base_path / layout_root_directory
 
-    # Check if loading the workspace should be enabled
-    enable_load = config.get('enable_load_workspace', True)
-
-    # Load the workspace if enabled
-    load_workspace(layout_root_path, config['workspace_id'], sdk, enable_load=enable_load)
-
     processor = YAMLProcessor(
         workspace_id=config['workspace_id'],
         sdk=sdk,
@@ -66,6 +60,12 @@ def main():
     logger.info("Descriptions Dictionary:")
     for element_id, description in processor.descriptions_dict.items():
         logger.info(f"{element_id}: {description}")
+
+    # Check if loading the workspace should be enabled
+    enable_load = config.get('enable_load_workspace', True)
+
+    # Load the workspace if enabled
+    load_workspace(layout_root_path, config['workspace_id'], sdk, enable_load=enable_load)
 
 
 if __name__ == "__main__":
