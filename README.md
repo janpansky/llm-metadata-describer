@@ -26,6 +26,7 @@ llm-metadata-describer/
 ├── utils.py                   # General utilities
 ├── yaml_processor.py          # YAML file processing
 ├── workspace_layout_directory/ # (Optional) Workspace layouts (see below)
+├── .env.template              # Environment variable template
 ├── .gitignore                 # Git ignore rules
 ├── requirements.txt           # Python dependencies
 └── README.md                  # This file
@@ -37,7 +38,7 @@ llm-metadata-describer/
    git clone <repo-url>
    cd llm-metadata-describer
    ```
-2. Create and activate a virtual environment:
+2. (Optional but recommended) Create and activate a Python virtual environment:
    ```sh
    python3 -m venv venv
    source venv/bin/activate
@@ -46,11 +47,13 @@ llm-metadata-describer/
    ```sh
    pip install -r requirements.txt
    ```
-4. Copy the provided `.env` file and fill in your own secrets (do **not** commit this file to git):
-   ```sh
-   cp .env .env.local  # or edit .env directly if not versioned
-   # Edit .env/.env.local and set your GOODDATA_API_TOKEN, LLM_API_TOKEN, etc.
-   ```
+4. **Set up your environment variables:**
+   - Copy `.env.template` to `.env`:
+     ```sh
+     cp .env.template .env
+     ```
+   - Edit `.env` and fill in your actual GoodData hostname, API tokens, workspace ID, and other required values. **Do not commit `.env` to git.**
+   - The `.env` file is required for running the tool and is automatically loaded at runtime. `.env.template` serves as a safe starting point for configuration.
 
 ## Usage
 ### Basic
