@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A tool for describing and managing metadata for GoodData LLM (Large Language Model) projects. It processes YAML configuration and description files to generate, manage, and utilize metadata for GoodData LLM-driven workflows.
+A tool that processes GoodData metadata from facts to dashboards using LLM. It processes YAML configuration and description files to generate, manage, and utilize metadata for GoodData LLM-driven workflows.
 
 ---
 
