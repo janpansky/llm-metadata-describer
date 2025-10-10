@@ -316,8 +316,7 @@ class YAMLProcessor:
             maql = data.get('content', {}).get('maql', '')
             format_ = data.get('content', {}).get('format', '')
             return (
-                f"Generate a brief, neutral, catalog-style description for a {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a brief, neutral, catalog-style description for a {description_type}. "
                 f"Focus only on what it measures from the MAQL. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -335,8 +334,7 @@ class YAMLProcessor:
                 [f"{id_}: {self.descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
             return (
-                f"Generate a short, neutral, catalog-style description for a {description_type} "
-                f"with financial services/payments context. "
+                f"Generate a short, neutral, catalog-style description for a {description_type}. "
                 f"Do not describe fields. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -353,8 +351,7 @@ class YAMLProcessor:
                 [f"{id_}: {self.descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
             return (
-                f"Generate a short, neutral, catalog-style description for an {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a short, neutral, catalog-style description for an {description_type}. "
                 f"Do not describe fields. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -364,8 +361,7 @@ class YAMLProcessor:
             )
         elif description_type == "attribute":
             return (
-                f"Generate a brief, neutral, catalog-style description for an {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a brief, neutral, catalog-style description for an {description_type}. "
                 f"Describe what dimension or categorical data this represents. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -375,8 +371,7 @@ class YAMLProcessor:
             )
         elif description_type == "fact":
             return (
-                f"Generate a brief, neutral, catalog-style description for a {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a brief, neutral, catalog-style description for a {description_type}. "
                 f"Describe what numerical measure or value this represents. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -386,8 +381,7 @@ class YAMLProcessor:
             )
         elif description_type == "label":
             return (
-                f"Generate a brief, neutral, catalog-style description for a {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a brief, neutral, catalog-style description for a {description_type}. "
                 f"Describe what display form or label this represents. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
@@ -397,8 +391,7 @@ class YAMLProcessor:
             )
         else:
             return (
-                f"Generate a brief, neutral, catalog-style description for a {description_type} "
-                f"in the financial services/payments sector. "
+                f"Generate a brief, neutral, catalog-style description for a {description_type}. "
                 f"Do not describe fields. "
                 f"Do not include IDs, titles, quotes, or speculation. "
                 f"Keep under 128 characters.\n"
