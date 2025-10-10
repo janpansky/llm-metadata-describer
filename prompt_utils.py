@@ -30,27 +30,25 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict, 
         logger.debug(f"Metric context for {element_id}: {metric_context}")
 
         return (
-            f"Generate a concise business-relevant description for a {description_type}. This is a metric, "
-            f"not a dataset. The description should focus on what the metric measures or calculates "
-            f"based on the MAQL (Metric Aggregation Query Language) provided. Do not describe it as a dataset. "
-            f"It might be composed of a dataset, but it is operating on top of it. "
-            f"Ensure the description highlights the key insights or value this metric provides, "
-            f"without technical jargon or irrelevant details. The description should fit within 128 characters.\n"
-            f"Title: {title}\n"
-            f"ID: {element_id}\n"
-            f"MAQL: {maql}\n"
-            f"Context:\n{metric_context}\n"
-        )
+    f"Generate a brief, neutral, catalog-style description for a {description_type} "
+    f"in the financial services/payments sector. "
+    f"This is a metric, not a dataset. State what it measures from the MAQL only. "
+    f"Do not include IDs, titles, quotes, or speculate on use. "
+    f"The description must be under 128 characters.\n"
+    f"Title: {title}\n"
+    f"ID: {element_id}\n"
+    f"MAQL: {maql}\n"
+    f"Context:\n{metric_context}\n"
+)
 
     elif description_type == "visualization object":
         visualization_url = data.get('visualizationUrl', '')
         return (
-            f"Generate a descriptive text for a {description_type} with a business meaning "
-            f"so I can find it with various similarity search algorithms. "
-            f"Do not describe the fields themselves. "
-            f"Without any single or double quotes in the beginning and at the end "
-            f"Do not mention visualization id. "
-            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Generate a short, neutral, catalog-style description for a {description_type} "
+            f"with financial services/payments context. "
+            f"Do not describe fields. "
+            f"Do not include IDs, titles, quotes, or speculation. "
+            f"The description must be under 128 characters.\n"
             f"Title: {title}\n"
             f"ID: {element_id}\n"
             f"Visualization URL: {visualization_url}\n"
@@ -59,11 +57,11 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict, 
 
     elif description_type == "dashboard":
         return (
-            f"Generate a descriptive text for a {description_type} with a business meaning "
-            f"so I can find it with various similarity search algorithms. "
-            f"Do not describe the fields themselves. "
-            f"Without any single or double quotes in the beginning and at the end. "
-            f"The description must fit within 256 characters based on the following details:\n"
+            f"Generate a short, neutral, catalog-style description for a {description_type} "
+            f"in the financial services/payments sector. "
+            f"Do not describe fields. "
+            f"Do not include IDs, titles, quotes, or speculation. "
+            f"The description must be under 128 characters.\n"
             f"Title: {title}\n"
             f"ID: {element_id}\n"
             f"Context:\n{context}\n"
@@ -71,10 +69,11 @@ def generate_prompt(data: dict, description_type: str, descriptions_dict: dict, 
 
     else:
         return (
-            f"Generate a descriptive text with business meaning for a {description_type}. "
-            f"Do not describe the fields themselves. "
-            f"Without any single or double quotes in the beginning and at the end. "
-            f"The documentation must fit into 128 characters based on the following details:\n"
+            f"Generate a brief, neutral, catalog-style description for a {description_type} "
+            f"in the financial services/payments sector. "
+            f"Do not describe fields. "
+            f"Do not include IDs, titles, quotes, or speculation. "
+            f"The description must be under 128 characters.\n"
             f"Title: {title}\n"
             f"ID: {element_id}\n"
         )

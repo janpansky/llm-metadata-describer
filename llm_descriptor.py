@@ -106,12 +106,52 @@ class YAMLProcessor:
             element_id = data.get('id')
             logger.debug(f"Processing dataset with ID: {element_id}")
 
+            # Process the main dataset description
             if element_id in self.descriptions_dict:
                 data['description'] = self.descriptions_dict[element_id]
                 logger.info(f"Applied existing description for dataset ID {element_id}: {data['description']}")
             else:
                 logger.info(f"Generating description for dataset ID {element_id}.")
                 data = self.update_dataset_description(data)
+
+            # Process attributes within the dataset
+            if 'attributes' in data:
+                for i, attribute in enumerate(data['attributes']):
+                    attr_id = attribute.get('id')
+                    if attr_id:
+                        logger.debug(f"Processing attribute with ID: {attr_id}")
+                        if attr_id in self.descriptions_dict:
+                            attribute['description'] = self.descriptions_dict[attr_id]
+                            logger.info(f"Applied existing description for attribute ID {attr_id}: {attribute['description']}")
+                        else:
+                            logger.info(f"Generating description for attribute ID {attr_id}.")
+                            data['attributes'][i] = self.update_attribute_description(attribute)
+
+            # Process facts within the dataset
+            if 'facts' in data:
+                for i, fact in enumerate(data['facts']):
+                    fact_id = fact.get('id')
+                    if fact_id:
+                        logger.debug(f"Processing fact with ID: {fact_id}")
+                        if fact_id in self.descriptions_dict:
+                            fact['description'] = self.descriptions_dict[fact_id]
+                            logger.info(f"Applied existing description for fact ID {fact_id}: {fact['description']}")
+                        else:
+                            logger.info(f"Generating description for fact ID {fact_id}.")
+                            data['facts'][i] = self.update_fact_description(fact)
+
+            # Process labels within the dataset
+            if 'labels' in data:
+                for i, label in enumerate(data['labels']):
+                    label_id = label.get('id')
+                    if label_id:
+                        logger.debug(f"Processing label with ID: {label_id}")
+                        if label_id in self.descriptions_dict:
+                            label['description'] = self.descriptions_dict[label_id]
+                            logger.info(f"Applied existing description for label ID {label_id}: {label['description']}")
+                        else:
+                            logger.info(f"Generating description for label ID {label_id}.")
+                            data['labels'][i] = self.update_label_description(label)
 
             self.save_yaml_file(yaml_file, data)
 
@@ -238,6 +278,15 @@ class YAMLProcessor:
     def update_dashboard_description(self, data: dict) -> dict:
         return self._update_description(data, description_type="analytical dashboard")
 
+    def update_attribute_description(self, data: dict) -> dict:
+        return self._update_description(data, description_type="attribute")
+
+    def update_fact_description(self, data: dict) -> dict:
+        return self._update_description(data, description_type="fact")
+
+    def update_label_description(self, data: dict) -> dict:
+        return self._update_description(data, description_type="label")
+
     def _update_description(self, data: dict, description_type: str) -> dict:
         element_id = data.get('id')
         if not element_id:
@@ -267,11 +316,11 @@ class YAMLProcessor:
             maql = data.get('content', {}).get('maql', '')
             format_ = data.get('content', {}).get('format', '')
             return (
-                f"Generate a descriptive text for a {description_type} with business meaning for ecommerce-solution "
-                f"so I can find it with various similarity search algorithms. "
-                f"Do not describe the fields themselves. "
-                f"Without any single or double quotes in the beginning and at the end "
-                f"The documentation must fit into 256 characters based on the following details:\n"
+                f"Generate a brief, neutral, catalog-style description for a {description_type} "
+                f"in the financial services/payments sector. "
+                f"Focus only on what it measures from the MAQL. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
                 f"Title: {data.get('title')}\n"
                 f"ID: {data.get('id')}\n"
                 f"MAQL: {maql}\n"
@@ -286,11 +335,11 @@ class YAMLProcessor:
                 [f"{id_}: {self.descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
             return (
-                f"Generate a descriptive text for a {description_type} with business meaning for ecommerce-solution "
-                f"so I can find it with various similarity search algorithms. "
-                f"Do not describe the fields themselves. "
-                f"Without any single or double quotes in the beginning and at the end "
-                f"The documentation must fit into 256 characters based on the following details:\n"
+                f"Generate a short, neutral, catalog-style description for a {description_type} "
+                f"with financial services/payments context. "
+                f"Do not describe fields. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
                 f"Title: {title}\n"
                 f"ID: {data.get('id')}\n"
                 f"Visualization URL: {visualization_url}\n"
@@ -304,21 +353,55 @@ class YAMLProcessor:
                 [f"{id_}: {self.descriptions_dict.get(id_, 'No description available')}" for id_ in extracted_ids])
 
             return (
-                f"Generate a descriptive text for an {description_type} with business meaning for ecommerce-solution "
-                f"so I can find it with various similarity search algorithms. "
-                f"Do not describe the fields themselves. "
-                f"Without any single or double quotes in the beginning and at the end "
-                f"The documentation must fit into 256 characters based on the following details:\n"
+                f"Generate a short, neutral, catalog-style description for an {description_type} "
+                f"in the financial services/payments sector. "
+                f"Do not describe fields. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
                 f"Title: {title}\n"
                 f"ID: {data.get('id')}\n"
                 f"Context:\n{context}\n"
             )
+        elif description_type == "attribute":
+            return (
+                f"Generate a brief, neutral, catalog-style description for an {description_type} "
+                f"in the financial services/payments sector. "
+                f"Describe what dimension or categorical data this represents. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
+                f"Title: {data.get('title')}\n"
+                f"ID: {data.get('id')}\n"
+                f"Source Column: {data.get('sourceColumn', 'N/A')}\n"
+            )
+        elif description_type == "fact":
+            return (
+                f"Generate a brief, neutral, catalog-style description for a {description_type} "
+                f"in the financial services/payments sector. "
+                f"Describe what numerical measure or value this represents. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
+                f"Title: {data.get('title')}\n"
+                f"ID: {data.get('id')}\n"
+                f"Source Column: {data.get('sourceColumn', 'N/A')}\n"
+            )
+        elif description_type == "label":
+            return (
+                f"Generate a brief, neutral, catalog-style description for a {description_type} "
+                f"in the financial services/payments sector. "
+                f"Describe what display form or label this represents. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
+                f"Title: {data.get('title')}\n"
+                f"ID: {data.get('id')}\n"
+                f"Source Column: {data.get('sourceColumn', 'N/A')}\n"
+            )
         else:
             return (
-                f"Generate a descriptive text with business meaning for a {description_type} in an ecommerce solution. "
-                f"Do not describe the fields themselves. "
-                f"Without any single or double quotes in the beginning and at the end "
-                f"The documentation must fit into 256 characters based on the following details:\n"
+                f"Generate a brief, neutral, catalog-style description for a {description_type} "
+                f"in the financial services/payments sector. "
+                f"Do not describe fields. "
+                f"Do not include IDs, titles, quotes, or speculation. "
+                f"Keep under 128 characters.\n"
                 f"Title: {data.get('title')}\n"
                 f"ID: {data.get('id')}\n"
             )
